@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FallHop · Bitchat ↔ Konomi translator</title>
+<meta name="description" content="Estate messages ride Bitchat's mesh. FallHop translates Bitchat's wire format into Konomi 7-ring did:key semantics and back. Reverse-engineered from public source. MIT.">
+<meta name="author" content="AI-Native Solutions">
+<meta name="theme-color" content="#1a1a1e">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%231a1a1e'/%3E%3Ctext x='16' y='22' font-family='serif' font-size='18' fill='%237a9c7e' text-anchor='middle'%3E%E2%97%8A%3C/text%3E%3C/svg%3E">
+<link rel="manifest" href="manifest.webmanifest">
+<style>
+:root{
+  --void:#1a1a1e; --deep:#212127; --surface:#2a2a30; --raised:#33333a;
+  --line:rgba(232,228,219,0.08); --line2:rgba(232,228,219,0.16);
+  --text:#e8e4db; --muted:#928d80; --dim:#6b6660;
+  --sage:#7a9c7e; --sage-dim:rgba(122,156,126,0.14);
+  --amber:#d4a052; --amber-dim:rgba(212,160,82,0.12);
+  --coral:#d67a5a; --coral-glow:rgba(214,122,90,0.15);
+  --serif:'Cormorant Garamond','Iowan Old Style',Georgia,serif;
+  --sans:'Inter',-apple-system,system-ui,sans-serif;
+  --mono:'JetBrains Mono','IBM Plex Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{background:var(--void);color:var(--text);font-family:var(--sans);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased;min-height:100vh}
+button,input,textarea,select{font-family:inherit}
+button{cursor:pointer;border:none;outline:none;background:transparent;color:inherit}
+h1,h2,h3{font-family:var(--serif);font-weight:400;color:var(--text);line-height:1.2}
+h1{font-size:34px;letter-spacing:.01em}
+h1 em{color:var(--sage);font-style:italic}
+h2{font-size:22px;margin-bottom:10px}
+h2 em{color:var(--sage);font-style:italic}
+h3{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.14em;font-family:var(--mono);font-weight:500;margin-bottom:8px}
+code,pre{font-family:var(--mono);font-size:12.5px}
+.topbar{background:rgba(26,26,30,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--line);padding:14px 24px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:50}
+.brand{display:flex;align-items:baseline;gap:10px;font-family:var(--serif);font-size:22px}
+.brand .glyph{color:var(--sage);font-size:22px}
+.brand .co{color:var(--dim);font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;margin-left:6px;text-transform:uppercase}
+.tag{color:var(--muted);font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase}
+main{padding:24px;max-width:1180px;margin:0 auto;width:100%}
+.hero{padding:30px 0 24px;border-bottom:1px solid var(--line);margin-bottom:24px}
+.hero p{color:var(--muted);max-width:760px;margin-top:10px}
+.hero .ring-strip{display:flex;gap:10px;margin-top:16px;color:var(--sage);font-size:22px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:960px){.grid{grid-template-columns:1fr}}
+.card{background:var(--deep);border:1px solid var(--line);border-radius:14px;padding:20px 22px;margin-bottom:18px}
+.card.wide{grid-column:1/-1}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:10px}
+.row.tight{margin-bottom:6px}
+label{color:var(--muted);font-family:var(--mono);font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;min-width:110px}
+input,textarea,select{background:var(--surface);color:var(--text);border:1px solid var(--line2);border-radius:8px;padding:9px 12px;font-size:13.5px;flex:1;font-family:var(--mono)}
+textarea{min-height:64px;resize:vertical;font-family:var(--sans);font-size:14px}
+.btn{background:var(--sage);color:var(--void);padding:10px 16px;border-radius:8px;font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;font-weight:700}
+.btn:hover{background:#8db091}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line2)}
+.btn.ghost:hover{border-color:var(--sage);color:var(--sage)}
+.btn.amber{background:var(--amber);color:var(--void)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;background:var(--surface);border:1px solid var(--line2);border-radius:20px;font-family:var(--mono);font-size:10.5px;color:var(--muted);letter-spacing:.08em}
+.pill.on{background:var(--sage-dim);color:var(--sage);border-color:var(--sage)}
+.pill.warn{background:var(--amber-dim);color:var(--amber);border-color:var(--amber)}
+.status{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+.log{background:var(--void);border:1px solid var(--line);border-radius:8px;padding:12px;max-height:260px;overflow-y:auto;font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.55}
+.log .entry{padding:6px 0;border-bottom:1px dashed var(--line)}
+.log .entry:last-child{border-bottom:0}
+.log .t{color:var(--sage)}
+.log .k{color:var(--amber)}
+.hex{background:var(--void);border:1px solid var(--line);border-radius:8px;padding:12px;font-family:var(--mono);font-size:11px;color:var(--sage);word-break:break-all;max-height:180px;overflow-y:auto;line-height:1.65}
+.hex .b{color:var(--amber)}
+.hex .r{color:var(--coral)}
+.k-vec{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.k-slot{background:var(--surface);border:1px solid var(--line2);border-radius:6px;padding:5px 9px;font-family:var(--mono);font-size:11px;color:var(--muted)}
+.k-slot b{color:var(--sage)}
+.ring-chain{display:flex;gap:8px;align-items:center;font-size:20px;color:var(--dim);margin:8px 0}
+.ring-chain .on{color:var(--sage);text-shadow:0 0 8px var(--sage-dim)}
+.ring-chain .cur{color:var(--amber);font-size:26px}
+table{width:100%;border-collapse:collapse;font-size:12.5px;font-family:var(--mono)}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);color:var(--muted)}
+th{color:var(--sage);letter-spacing:.08em;text-transform:uppercase;font-size:10.5px;font-weight:500}
+td.val{color:var(--text)}
+td.lost{color:var(--coral)}
+.small{color:var(--dim);font-size:11.5px;font-family:var(--mono);letter-spacing:.06em}
+.spec{color:var(--muted);font-size:12.5px;line-height:1.7}
+.spec strong{color:var(--sage)}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:800px){.split{grid-template-columns:1fr}}
+footer{padding:36px 24px;text-align:center;color:var(--dim);font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;border-top:1px solid var(--line);margin-top:32px}
+footer a{color:var(--muted);text-decoration:none;border-bottom:1px dotted var(--line2)}
+footer a:hover{color:var(--sage)}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="glyph">◊</span>FallHop<span class="co">AI-Native Solutions</span></div>
+  <div class="tag">Bitchat ⇄ Konomi · v1</div>
+</div>
+
+<main>
+
+<section class="hero">
+  <h1>FallHop — <em>Bitchat becomes Konomi</em></h1>
+  <p>FallHop speaks Bitchat's binary wire format on the outside and Konomi (did:key + 7 rings + F(S⃗)) on the inside. Estate messages ride Jack Dorsey's Bluetooth mesh; Bitchat packets arrive as estate-native messages. Bitchat is treated as a lossy legacy protocol we translate to and from — not a peer we imitate.</p>
+  <div class="ring-strip" title="Konomi 7-ring spine">● 〜 ┃ ♡ △ ◐ ◯</div>
+</section>
+
+<div class="grid">
+  <div class="card">
+    <h3>Wire status</h3>
+    <div class="status" id="status"></div>
+    <div class="row">
+      <label>Transport</label>
+      <select id="transport">
+        <option value="loopback">Loopback (self-test)</option>
+        <option value="webbluetooth">Web Bluetooth (real Bitchat mesh)</option>
+        <option value="fallbridge">FallBridge (BLE dongle passthrough)</option>
+      </select>
+    </div>
+    <div class="row">
+      <label>Service UUID</label>
+      <input id="serviceUuid" value="f47b5e2d-4a9e-4c5a-9b3f-8e1d2c3a4b5c">
+    </div>
+    <div class="row">
+      <button class="btn" id="start">Start listening</button>
+      <button class="btn ghost" id="registerBtn">Register with FallCarrier</button>
+    </div>
+    <p class="small" id="hint">Loopback echoes any packet back through the translator so you can see the Konomi mapping without pairing hardware.</p>
+  </div>
+
+  <div class="card">
+    <h3>Identity (FallID)</h3>
+    <div class="row">
+      <label>Your DID</label>
+      <input id="myDid" value="did:key:z6MkFallHopSimonSj12345">
+    </div>
+    <div class="row">
+      <label>Nickname</label>
+      <input id="nick" value="simon-gant">
+    </div>
+    <div class="row">
+      <button class="btn ghost" id="loadFallId">Load fallid.js if reachable</button>
+      <span class="pill" id="fidStatus">not loaded</span>
+    </div>
+    <p class="spec">Konomi identity is <strong>did:key</strong> — persistent, self-sovereign. Bitchat's 8-byte ephemeral peer ID is stored under <code>bitchat_only</code> and rederived on the wire.</p>
+  </div>
+</div>
+
+<div class="card wide">
+  <h2><em>Compose</em> — send via Bitchat wire</h2>
+  <div class="split">
+    <div>
+      <div class="row">
+        <label>To (DID)</label>
+        <input id="toDid" value="did:key:z6MkTargetPeerBob987654321">
+      </div>
+      <div class="row">
+        <label>Type</label>
+        <select id="msgType">
+          <option value="message">Public message (0x02)</option>
+          <option value="announce">Announce (0x01)</option>
+          <option value="noiseEncrypted">NoiseEncrypted opaque (0x11)</option>
+        </select>
+      </div>
+      <div class="row">
+        <label>TTL</label>
+        <input id="ttl" type="number" value="7" min="1" max="7">
+      </div>
+      <div class="row"><label>Text</label>
+        <textarea id="body">hello over the mesh — did:key rides again</textarea>
+      </div>
+      <div class="row">
+        <button class="btn" id="sendBtn">Serialize + send</button>
+        <button class="btn ghost" id="clearBtn">Clear inspector</button>
+      </div>
+    </div>
+    <div>
+      <h3>Sent-packet inspector</h3>
+      <div class="hex" id="wireOut">— nothing sent yet —</div>
+      <h3 style="margin-top:14px">Konomi view of what you just sent</h3>
+      <div id="konomiOut" class="spec">—</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h2><em>Paste raw</em> Bitchat bytes</h2>
+    <div class="row"><label>Hex</label>
+      <input id="pasteHex" placeholder="01 02 07 00 00 01 8f d3 ... (paste any Bitchat packet)">
+    </div>
+    <div class="row">
+      <button class="btn" id="parseBtn">Parse as Konomi</button>
+      <button class="btn ghost" id="loopBtn">Loopback my last send</button>
+    </div>
+    <div id="pasteResult" class="spec" style="margin-top:8px">—</div>
+  </div>
+
+  <div class="card">
+    <h2><em>Incoming</em> mesh log</h2>
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<div class="card wide">
+  <h2><em>Field-by-field</em> translation & loss report</h2>
+  <table id="lossTable">
+    <thead><tr><th>Bitchat field</th><th>Konomi mapping</th><th>Fidelity</th></tr></thead>
+    <tbody>
+      <tr><td>senderID (8 bytes)</td><td class="val">fromDid — did:bitchat:&lt;hex&gt; wrapper</td><td class="val">lossless round-trip</td></tr>
+      <tr><td>recipientID (8 bytes)</td><td class="val">toDid — same wrapper</td><td class="val">lossless</td></tr>
+      <tr><td>ttl (0..7)</td><td class="val">Konomi 7-ring position + κ<sup>hops</sup> attenuation</td><td class="val">semantically enriched</td></tr>
+      <tr><td>type (0x01..0x22)</td><td class="val">body shape (announce / text / opaque)</td><td class="val">lossless</td></tr>
+      <tr><td>timestamp (ms)</td><td class="val">timestamp — passthrough</td><td class="val">lossless</td></tr>
+      <tr><td>flags (isRSR, isCompressed, hasRoute)</td><td class="lost">bitchat_only.flagsRaw — no Konomi analog</td><td class="lost">preserved for round-trip only</td></tr>
+      <tr><td>signature (Ed25519, 64 B)</td><td class="lost">bitchat_only.signature — estate uses fold F(S⃗) authenticity, not Ed25519 on-wire</td><td class="lost">preserved verbatim</td></tr>
+      <tr><td>Noise XX handshake (0x10)</td><td class="lost">opaque body — Konomi does not model Noise natively</td><td class="lost">opaque passthrough</td></tr>
+      <tr><td>zlib payload compression</td><td class="lost">bitchat_only.isCompressed — Konomi payload is CID-anchored, not compressed on-wire</td><td class="lost">round-trip flag only</td></tr>
+      <tr><td>route[] source-routing hops</td><td class="val">rings crossed (ringHops[]) — semantic overlap</td><td class="val">partial map</td></tr>
+    </tbody>
+  </table>
+  <p class="spec" style="margin-top:12px"><strong>Estate face is Konomi-native.</strong> Everything Bitchat carries that has no Konomi analog is preserved under <code>bitchat_only</code> so <code>konomiToBitchat</code> can reconstruct the original wire packet byte-for-byte on the return path. That's the honest v1 contract.</p>
+</div>
+
+<footer>
+  ◊ FallHop · MIT · <a href="https://github.com/permissionlesstech/bitchat" target="_blank" rel="noopener">bitchat wire (public domain)</a> · <a href="https://sjgant80-hub.github.io/fallid/" target="_blank" rel="noopener">FallID</a> · <a href="https://sjgant80-hub.github.io/fallcarrier/" target="_blank" rel="noopener">FallCarrier</a> · <a href="https://sjgant80-hub.github.io/fallbridge/" target="_blank" rel="noopener">FallBridge</a>
+</footer>
+</main>
+
+<script type="module">
+import {
+  FallHop, WebBluetoothTransport, FallBridgeTransport,
+  BITCHAT, KONOMI_RINGS,
+  serialize, deserialize, bitchatToKonomi, konomiToBitchat,
+  encodePublicMessage, encodeAnnouncement, hex, unhex, ringsForTtl, foldFingerprint
+} from './fallhop.js';
+
+const $ = s => document.querySelector(s);
+const log = $('#log');
+const status = $('#status');
+
+function pill(txt, cls='') { const s = document.createElement('span'); s.className = 'pill ' + cls; s.textContent = txt; return s; }
+function paintStatus() {
+  status.innerHTML = '';
+  status.append(pill('service ' + $('#serviceUuid').value.slice(0,8) + '…', 'on'));
+  status.append(pill('type map ' + Object.keys(BITCHAT.TYPES).length + ' codes', 'on'));
+  status.append(pill('7-ring κ=0.618', 'on'));
+  status.append(pill('web-bluetooth: ' + (navigator.bluetooth ? 'yes' : 'no'), navigator.bluetooth ? 'on':'warn'));
+}
+paintStatus();
+
+// Loopback transport — echoes every send back through ingest for offline demo.
+class LoopbackTransport {
+  constructor() { this._in = () => {}; }
+  onIncoming(fn) { this._in = fn; }
+  async start() { return true; }
+  async broadcast(bytes) { setTimeout(() => this._in(bytes), 15); return true; }
+  async send(_did, bytes) { return this.broadcast(bytes); }
+}
+
+const fallid = { did: $('#myDid').value };
+const hop = new FallHop({ fallid, transport: 'loopback' });
+hop.attachTransport(new LoopbackTransport());
+window.hop = hop;
+window.BITCHAT = BITCHAT;
+
+hop.onMessage(({ raw, packet, konomi }) => {
+  const e = document.createElement('div'); e.className = 'entry';
+  e.innerHTML = '<span class="t">' + new Date().toLocaleTimeString() + '</span> · '
+    + '<span class="k">' + packet.typeName + '</span> · ttl=' + packet.ttl
+    + ' · ring=' + konomi.ring + ' · κ=' + konomi.kappa.toFixed(3)
+    + ' · from ' + konomi.fromDid.slice(0,26) + '…'
+    + '<br>' + (konomi.body.text ? '"' + konomi.body.text + '"' : ('[' + konomi.body.opaque + ' ' + konomi.body.bytes + 'B]'));
+  log.prepend(e);
+});
+
+$('#transport').addEventListener('change', () => {
+  const v = $('#transport').value;
+  if (v === 'webbluetooth') hop.attachTransport(new WebBluetoothTransport({ serviceUUID: $('#serviceUuid').value }));
+  else if (v === 'fallbridge') hop.attachTransport(new FallBridgeTransport());
+  else hop.attachTransport(new LoopbackTransport());
+  $('#hint').textContent = v === 'webbluetooth'
+    ? 'Browser will prompt for a nearby Bitchat peer. Chromium only. Currently gated in Simon\'s desktop Chrome.'
+    : v === 'fallbridge'
+    ? 'FallBridge dongle proxies BLE frames over HTTP so the browser can talk when Web Bluetooth is disabled.'
+    : 'Loopback echoes any packet back through the translator so you can see the Konomi mapping without pairing hardware.';
+});
+
+$('#start').addEventListener('click', async () => {
+  try {
+    await hop.startListening();
+    status.append(pill('listening', 'on'));
+  } catch (e) {
+    status.append(pill('start failed: ' + e.message, 'warn'));
+  }
+});
+
+$('#registerBtn').addEventListener('click', () => {
+  const stub = {
+    registerTransport(name, opts) { window.__carrier = { name, opts }; return true; }
+  };
+  hop.registerWithCarrier(stub);
+  status.append(pill('carrier: FallHop registered', 'on'));
+});
+
+$('#loadFallId').addEventListener('click', async () => {
+  try {
+    const m = await import('https://sjgant80-hub.github.io/fallid/fallid.js');
+    window.FallIDModule = m;
+    $('#fidStatus').textContent = 'loaded (' + Object.keys(m).join(', ').slice(0,60) + ')';
+    $('#fidStatus').classList.add('on');
+  } catch (e) {
+    $('#fidStatus').textContent = 'unreachable: ' + e.message.slice(0,40);
+    $('#fidStatus').classList.add('warn');
+  }
+});
+
+let lastSent = null;
+
+$('#sendBtn').addEventListener('click', async () => {
+  const myDid = $('#myDid').value.trim();
+  const toDid = $('#toDid').value.trim();
+  const ttl = Math.max(1, Math.min(7, parseInt($('#ttl').value, 10) || 7));
+  const type = $('#msgType').value;
+  const text = $('#body').value;
+  hop.fallid.did = myDid;
+
+  let bytes;
+  if (type === 'announce') {
+    bytes = konomiToBitchat({
+      fromDid: myDid, toDid: null,
+      body: {
+        nickname: $('#nick').value,
+        noisePublicKey: new Uint8Array(32),
+        signingPublicKey: new Uint8Array(32)
+      }
+    }, { ttl });
+  } else if (type === 'noiseEncrypted') {
+    bytes = serialize({
+      version: 1, type: 0x11, ttl,
+      senderID: myDid, recipientID: toDid,
+      timestamp: Date.now(),
+      payload: new TextEncoder().encode(text)
+    });
+  } else {
+    bytes = konomiToBitchat({ fromDid: myDid, toDid, body: { text } }, { ttl });
+  }
+  lastSent = bytes;
+  renderHex(bytes, $('#wireOut'));
+  const pkt = deserialize(bytes);
+  const k = bitchatToKonomi(pkt);
+  renderKonomi(k, $('#konomiOut'));
+  await hop.transport.broadcast(bytes);
+});
+
+$('#parseBtn').addEventListener('click', () => {
+  const raw = $('#pasteHex').value.replace(/[^0-9a-f]/gi,'');
+  if (raw.length < 20) { $('#pasteResult').textContent = 'need at least 22 hex bytes'; return; }
+  const bytes = unhex(raw);
+  const pkt = deserialize(bytes);
+  if (!pkt) { $('#pasteResult').innerHTML = '<span style="color:var(--coral)">not a valid Bitchat packet</span>'; return; }
+  const k = bitchatToKonomi(pkt);
+  renderKonomi(k, $('#pasteResult'));
+});
+
+$('#loopBtn').addEventListener('click', () => {
+  if (!lastSent) { $('#pasteResult').textContent = 'send something first'; return; }
+  $('#pasteHex').value = hex(lastSent);
+  $('#parseBtn').click();
+});
+
+$('#clearBtn').addEventListener('click', () => {
+  $('#wireOut').textContent = '— nothing sent yet —';
+  $('#konomiOut').innerHTML = '—';
+});
+
+function renderHex(bytes, el) {
+  const headerSize = bytes[0] === 2 ? 16 : 14;
+  const sender = headerSize;
+  const flags = bytes[11];
+  const hasRcpt = !!(flags & 0x01);
+  const recipEnd = sender + 8 + (hasRcpt ? 8 : 0);
+  let html = '';
+  for (let i = 0; i < bytes.length; i++) {
+    const byte = bytes[i].toString(16).padStart(2,'0');
+    let cls = '';
+    if (i < headerSize) cls = 'b';
+    else if (i < recipEnd) cls = 'r';
+    html += (cls ? `<span class="${cls}">${byte}</span>` : byte) + ((i+1) % 16 === 0 ? '<br>' : ' ');
+  }
+  el.innerHTML = html + `<br><span class="small">${bytes.length} bytes · <span class="b">header</span> · <span class="r">peer IDs</span> · payload</span>`;
+}
+
+function renderKonomi(k, el) {
+  if (!k) { el.textContent = 'no mapping'; return; }
+  const rings = KONOMI_RINGS.map((r, i) => {
+    if (i < k.hopsUsed - 1) return `<span class="on">${r}</span>`;
+    if (i === k.hopsUsed - 1) return `<span class="cur">${r}</span>`;
+    return r;
+  }).join(' ');
+  const vec = k.stateVector.map((v,i) => `<span class="k-slot">S<sub>${i}</sub> <b>${v.toString(16).padStart(4,'0')}</b></span>`).join('');
+  const bodyStr = k.body.text ? `"${k.body.text}"` : `[${k.body.opaque || 'body'} · ${k.body.bytes || 0} B]`;
+  el.innerHTML = `
+    <div class="row tight"><span class="pill on">${k.kind}</span>
+      <span class="pill">from ${k.fromDid.slice(0,26)}…</span>
+      ${k.toDid ? `<span class="pill">to ${k.toDid.slice(0,26)}…</span>` : ''}
+    </div>
+    <div class="ring-chain">${rings}</div>
+    <div class="small">hops used: ${k.hopsUsed} / 7 · κ remaining = ${k.kappa.toFixed(4)} · fold F(S⃗) = ${k.foldNumber.toString(16).padStart(4,'0')}</div>
+    <div class="k-vec">${vec}</div>
+    <div style="margin-top:10px" class="spec"><strong>body</strong> — ${bodyStr}</div>
+    <details style="margin-top:10px"><summary class="small">bitchat_only (loss report)</summary>
+      <pre style="white-space:pre-wrap;color:var(--coral);font-size:11px;margin-top:6px">${JSON.stringify(k.bitchat_only, null, 2)}</pre>
+    </details>
+  `;
+}
+
+// PWA
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+</body>
+</html>
